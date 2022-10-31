@@ -1,2 +1,5 @@
 rootProject.name = "Componentization"
 include ':app'
+include ':business'
+include ':core'
+include ':base'
