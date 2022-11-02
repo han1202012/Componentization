@@ -11,17 +11,17 @@ apply from: "${rootProject.rootDir}/common.gradle"
 
 if (project.isModuleDebug) {
     /**
-     * 模块化 : 在 Debug 开发阶段, 每个模块都可以独立运行, 因此相关的模块都是 Application 应用模块,
+     * 组件化 : 在 Debug 开发阶段, 每个模块都可以独立运行, 因此相关的模块都是 Application 应用模块,
      *         此时, isModuleDebug 设置为 true. ( 单独运行 )
-     * 模块化导入 com.android.application 插件
+     * 组件化导入 com.android.application 插件
      */
     apply plugin: 'com.android.application'
 
 } else {
     /**
-     * 组件化 : 在 Release 发布阶段, 只有一个壳应用是可以独立运行的, 其它所有的模块都作为依赖库存在,
+     * 模块化 : 在 Release 发布阶段, 只有一个壳应用是可以独立运行的, 其它所有的模块都作为依赖库存在,
      *         此时, isModuleDebug 设置为 false. ( 非单独运行 )
-     * 组件化导入 com.android.library 插件
+     * 模块化导入 com.android.library 插件
      */
     apply plugin: 'com.android.library'
 }
@@ -63,6 +63,18 @@ android {
     }
     kotlinOptions {
         jvmTarget = '1.8'
+    }
+
+    sourceSets {
+        main {
+            if (project.isModuleDebug) {
+                //可运行模块
+                manifest.srcFile "src/main/debug/AndroidManifest.xml"
+            } else {
+                //依赖库模块
+                manifest.srcFile "src/main/AndroidManifest.xml"
+            }
+        }
     }
 }
 

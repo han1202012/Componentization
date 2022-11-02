@@ -4,10 +4,100 @@
 project.ext {
     /**
      * 该变量控制当前的运行模式
-     *      模块化 : 在 Debug 开发阶段, 每个模块都可以独立运行, 因此相关的模块都是 Application 应用模块,
+     *      组件化 : 在 Debug 开发阶段, 每个模块都可以独立运行, 因此相关的模块都是 Application 应用模块,
      * 此时, isModuleDebug 设置为 true. ( 单独运行 )
-     *      组件化 : 在 Release 发布阶段, 只有一个壳应用是可以独立运行的, 其它所有的模块都作为依赖库存在,
+     *      模块化 : 在 Release 发布阶段, 只有一个壳应用是可以独立运行的, 其它所有的模块都作为依赖库存在,
      * 此时, isModuleDebug 设置为 false. ( 非单独运行 )
      */
-    isModuleDebug = false
+    isModuleDebug = true
+
+    /**
+     * build.gradle 构建脚本中使用到的编译相关版本号
+     */
+    compileSdkVersion = 32
+    buildToolsVersion = "32.0.0"
+    minSdkVersion = 18
+    targetSdkVersion = 32
+    versionCode = 1
+    versionName = "1.0"
+
+    /**
+     * 主应用的 applicationId
+     */
+    applicationId = "kim.hsl.componentization"
+
+    /**
+     * 定义闭包 , 传入一个 project 参数
+     * 闭包作用是导入 可执行应用 模块的插件
+     *
+     * 如果当前的模块是 可执行应用 模块 , 则调用该闭包执行
+     * 如果当前的模块是 依赖库 模块 , 则调用另外的 闭包
+     */
+    setApplicationDefaultConfig = {
+        project ->
+            // 导入 com.android.application 插件
+            project.apply plugin: 'com.android.application'
+            project.apply plugin: 'kotlin-android'
+
+            /**
+             * 在 com.android.application 插件中 , 对 Project 进行了扩展 , 声明了 android 扩展配置
+             * 因此可以使用 project.android 获取该配置对象
+             */
+            setAndroidConfig project.android
+    }
+
+    setLibraryDefaultConfig = {
+        project ->
+            // 导入 com.android.application 插件
+            project.apply plugin: 'com.android.application'
+            project.apply plugin: 'kotlin-android'
+
+            /**
+             * 在 com.android.application 插件中 , 对 Project 进行了扩展 , 声明了 android 扩展配置
+             * 因此可以使用 project.android 获取该配置对象
+             */
+            setAndroidConfig project.android
+    }
+
+    /**
+     * 定义闭包 , 传入 project.android 配置对象
+     * 在 com.android.application 插件中 , 对 Project 进行了扩展 , 声明了 android 扩展配置
+     * 因此可以使用 project.android 获取该配置对象
+     */
+    setAndroidConfig = {
+        android ->
+            /**
+             * 这里注意闭包中的属性查找策略
+             * 在闭包中访问属性 , 查找顺序为 this -> owner -> delegate
+             * 这个查找策略可以通过调用闭包的 setResolveStrategy 方法进行修改
+             * 在闭包里使用属性时 , 必须指明该属性是谁的 , 如 : project.compileSdkVersion
+             * 说明该属性是定义在 Project 中的, 也就是我们自己使用 ext 扩展的属性
+             * 否则就会触发上述 this -> owner -> delegate 顺序查找机制
+             */
+            android.compileSdkVersion project.compileSdkVersion
+            android.buildToolsVersion project.buildToolsVersion
+
+            /**
+             * 设置 " build.gradle#android#defaultConfig " 脚本块配置
+             */
+            android.defaultConfig {
+                applicationId project.applicationId
+                minSdkVersion project.minSdkVersion
+                targetSdkVersion project.targetSdkVersion
+                versionCode project.versionCode
+                versionName project.versionName
+
+                testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+            }
+    }
+
+
+}
+
+if (isModuleDebug) {
+    // 应用模块
+    project.setApplicationDefaultConfig project
+} else {
+    // 依赖库模块
+    project.setLibraryDefaultConfig project
 }
