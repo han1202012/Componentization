@@ -2,6 +2,12 @@
  * 定义 Project 对象的 ext 属性扩展
  */
 project.ext {
+    /*
+        注意 : 所有的变量都要定义在 构建脚本 最前面 ,
+        构建脚本是一个顺序执行的脚本 ,
+        变量一定要定义在最前面 ;
+     */
+
     /**
      * 该变量控制当前的运行模式
      *      组件化 : 在 Debug 开发阶段, 每个模块都可以独立运行, 因此相关的模块都是 Application 应用模块,
@@ -26,6 +32,33 @@ project.ext {
      */
     applicationId = "kim.hsl.componentization"
 
+    /*
+            implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+            implementation 'androidx.core:core-ktx:1.8.0'
+            implementation 'androidx.appcompat:appcompat:1.5.1'
+            implementation 'com.google.android.material:material:1.6.1'
+            implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+     */
+    /**
+     * 定义 map 集合 libs
+     * Key : 依赖库名称
+     * Value : 依赖库的完整路径 依赖库组名:依赖库名称:依赖库版本号
+     * 之后如果设置新的依赖 , 都添加到 libs 目录下
+     */
+    libs = [
+            "k-stdlib"        : "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version",
+            "ktx"             : "androidx.core:core-ktx:1.8.0",
+            "appcompat"       : "androidx.appcompat:appcompat:1.5.1",
+            "material"        : "com.google.android.material:material:1.6.1",
+            "constraintlayout": "androidx.constraintlayout:constraintlayout:2.1.4",
+            "arouter"         : "com.alibaba:arouter-api:1.5.1" // 组件化框架
+    ]
+
+    // 组件化框架的 注解处理器 依赖
+    apts = [
+            "ARouterCompiler": "com.alibaba:arouter-compiler:1.5.1",
+    ]
+
     /**
      * 定义闭包 , 传入一个 project 参数
      * 闭包作用是导入 可执行应用 模块的插件
@@ -44,12 +77,16 @@ project.ext {
              * 因此可以使用 project.android 获取该配置对象
              */
             setAndroidConfig project.android
+            /**
+             * 设置构建脚本中的依赖
+             */
+            setDependencies project.dependencies
     }
 
     setLibraryDefaultConfig = {
         project ->
             // 导入 com.android.application 插件
-            project.apply plugin: 'com.android.application'
+            project.apply plugin: 'com.android.library'
             project.apply plugin: 'kotlin-android'
 
             /**
@@ -57,6 +94,10 @@ project.ext {
              * 因此可以使用 project.android 获取该配置对象
              */
             setAndroidConfig project.android
+            /**
+             * 设置构建脚本中的依赖
+             */
+            setDependencies project.dependencies
     }
 
     /**
@@ -66,6 +107,23 @@ project.ext {
      */
     setAndroidConfig = {
         android ->
+            /*  主要是进行如下设置
+                android {
+                    compileSdkVersion 32
+                    buildToolsVersion "32.0.0"
+
+                    defaultConfig {
+                        if (project.isModuleDebug) {
+                            applicationId "kim.hsl.business"
+                    }
+                    minSdkVersion 18
+                    targetSdkVersion 32
+                    versionCode 1
+                    versionName "1.0"
+
+                    testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+                }
+             */
             /**
              * 这里注意闭包中的属性查找策略
              * 在闭包中访问属性 , 查找顺序为 this -> owner -> delegate
@@ -81,21 +139,122 @@ project.ext {
              * 设置 " build.gradle#android#defaultConfig " 脚本块配置
              */
             android.defaultConfig {
+
+                /**
+                 * 为了避免 applicationId , 各个模块的 applicationId 不能重复
+                 * app 模块中使用 applicationId 作为应用 ID 即可
+                 * 其它依赖库模块使用 applicationId + 模块名称 作为应用 ID
+                 * ( 在组件化调试模式下 , 发布状态时不添加 )
+                 */
+
+                // 默认的 应用 ID
+                // app 模块不管什么模式下 , 其应用 ID 都是 "kim.hsl.componentization"
                 applicationId project.applicationId
+
+                // 组件化模式下需要为每个模块设置 应用 ID
+                if (project.isModuleDebug) {
+                    // 组件化模式下 , 应用 ID 设置为 applicationId + 模块名称
+                    applicationId project.applicationId
+                    // 设置后缀
+                    applicationIdSuffix = project.name
+                } else {
+                    // 模块化状态下 , 暂时不需要设置
+                }
+
                 minSdkVersion project.minSdkVersion
                 targetSdkVersion project.targetSdkVersion
                 versionCode project.versionCode
                 versionName project.versionName
 
                 testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+
+                javaCompileOptions {
+                    // 为注解处理器设置路由模块名称
+                    annotationProcessorOptions {
+                        // 路由模块名称
+                        arguments += [AROUTER_MODULE_NAME: project.name]
+                    }
+                }
+            }
+
+            android.buildTypes {
+                release {
+                    minifyEnabled false
+                    proguardFiles android.getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+                }
+            }
+            android.compileOptions {
+                sourceCompatibility JavaVersion.VERSION_1_8
+                targetCompatibility JavaVersion.VERSION_1_8
+            }
+            android.kotlinOptions {
+                jvmTarget = '1.8'
+            }
+
+            android.sourceSets {
+                main {
+                    if (project.name != 'app') {
+                        if (project.isModuleDebug) {
+                            //可运行模块
+                            manifest.srcFile "src/main/debug/AndroidManifest.xml"
+                        } else {
+                            //依赖库模块
+                            manifest.srcFile "src/main/AndroidManifest.xml"
+                        }
+                    } else {
+                        // app 应用中的清单文件默认即可 , 可以不设置
+                        manifest.srcFile "src/main/AndroidManifest.xml"
+                    }
+                }
             }
     }
 
+    /**
+     * 定义闭包 , 在该闭包中设置依赖
+     */
+    setDependencies = {
+        dependencies ->
+            delegate = dependencies
 
+            /*
+                设置一系列的 implementation 依赖
+                implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+                implementation 'androidx.core:core-ktx:1.8.0'
+                implementation 'androidx.appcompat:appcompat:1.5.1'
+                implementation 'com.google.android.material:material:1.6.1'
+                implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+             */
+            project.libs.each {
+                k, v -> implementation v
+            }
+
+            /**
+             * 设置注解处理器依赖
+             */
+            project.apts.each {
+                k, v -> annotationProcessor v
+            }
+
+            testImplementation 'junit:junit:4.+'
+            androidTestImplementation 'androidx.test.ext:junit:1.1.3'
+            androidTestImplementation 'androidx.test.espresso:espresso-core:3.4.0'
+
+            /**
+             * 主应用需要依赖业务模块
+             */
+            if (project.name == 'app' && !project.isModuleDebug) {
+                implementation project(':business')
+            }
+    }
 }
 
-if (isModuleDebug) {
-    // 应用模块
+/**
+ * app 主应用 始终都是 Application 应用 , 不受 isModuleDebug 控制
+ * 其它模块在组件调试时 , 所有模块都是可执行模块
+ * 在发布时 , 所有模块都是依赖库模块
+ */
+if (isModuleDebug || project.name == 'app') {
+    // 应用模块 , 组件调试时所有的模块都必须可执行
     project.setApplicationDefaultConfig project
 } else {
     // 依赖库模块
